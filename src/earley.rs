@@ -89,12 +89,18 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
     // Origin set, used to bypass the "linear scan" step of finding parents to advance when children complete.
     // (start col, rule) -> set(parent row)
     let mut origin_sets : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
-    // Right recursion hack: This part lets up avoid creating quadratically many state items on right recursion.
-    let mut tailret : HashMap<(usize, usize), (usize, usize)> = <_>::default();
-    // Right recursion hack: This part will be necessary to reconstructing the AST.
-    let mut taildown : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
     // Reduction pointers: necessary to be able to reconstruct an AST or SPPF from most parses.
+    // Pointers from parent (col, row) to child row in same column, at time of completion.
     let mut reductions : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
+    // Right recursion hack: This part will be necessary to reconstructing the AST.
+    // Pointers from parent (col, row) to child row in same column, at time of completion.
+    let mut taildown : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
+    // Right recursion hack: This part lets up avoid creating quadratically many state items on right recursion.
+    // Pointers from child (col, row) to parent (col, row), at time of prediction.
+    let mut tailret : HashMap<(usize, usize), (usize, usize)> = <_>::default();
+    
+    // IMPLEMENTATION NOTE: In an optimized implementation, the above hashmaps should be "per column", not global.
+    // But for the sake of readability I've left them as global
     
     let mut col = 0;
     let mut row = 0;

@@ -36,8 +36,9 @@ A ::= #intentionally empty
 "####;
 */
     let s = r####"
-program ::= A
-A ::= "a" A | "a" | "b" | "c" | "d" | "e" | "f"
+program ::= B B A
+A ::= "a" A | "a" | "b" | "c" | "d" | "e" | "f" | "g"
+B ::=
 "####;
     let g = bnf_to_grammar(&s).unwrap();
     println!("{:#?}", &g);
@@ -96,7 +97,7 @@ a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a 
     //println!("{:#?}", earley_recognize(&g, "program", &tokens[..]));
     let ast = earley_parse(&g, "program", &tokens[..]);
     println!("{}", ast.is_ok());
-    println!("Time taken: {:?} for {}", start.elapsed(), tokens.len());
+    println!("Time taken: {:?} under {} items", start.elapsed(), tokens.len());
     //let ast = ast.unwrap();
     //println!("{:#?} {} {} {} {}", ast, ast.text, ast.children.as_ref().unwrap().len(), ast.token_start, ast.token_count);
 }
