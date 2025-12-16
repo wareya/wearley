@@ -6,6 +6,14 @@ You may use this code under any of the following licenses, at your choice: CC0, 
 
 Earley is a parsing algorithm that handles "pathological" grammars well. The implementation here has all the necessary modernizations to avoid the original 1968 version's problems: right recursion fix (1), nullability pre-advancement (2), reduction pointers (3), and pre-scanning*.
 
+Even with this grammar, on the input string `a a a a a a ......`, this parser has no issues:
+
+```bnf
+program ::= B B A
+A ::= "a" A | "a" | "b" | "c" | "d" | "e" | "f" | "g"
+B ::= #intentionally empty
+```
+
 Recommended reading:
 
 - Earley: An Efficient Context-Free Parsing Algorithm (1968)
