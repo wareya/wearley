@@ -20,7 +20,7 @@ Extra note 1: Despite being mostly top-down, Earley parsing prefers left-recursi
 
 Extra note 2: This implementation produces a syntax tree, but the necessary information for producing SPPFs (e.g. using Elizabeth Scott's algorithm) is all present and preserved. If you need an SPPF, you can adapt the code to produce one without much pain.
 
-Extra note 3: this is a "scannerful" implementation (i.e. it has a lexer/tokenizer): your tokenization needs are probably going to be slightly different, which is more reason that you should "copy paste and adapt" this.
+Extra note 3: This is a "scannerful" implementation, which means that it has a lexer/tokenizer. Your tokenization needs are probably going to be slightly different, which is more reason that you should "copy paste and adapt" this.
 
 Extra note 4: You *probably* shouldn't use ambiguity-preserving algos like Earley for scannerless parsing; the extra costs associated with preserving ambiguity across the insides of lexical items makes everything way, way slower, so you should only go scannerless over ambiguity if it's absolutely necessary. You can adapt this to be scannerless if you're in one of those rare necessary situations, though: it's easier to go from scannerful to scannerless than the other way around.
 
