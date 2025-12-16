@@ -38,3 +38,13 @@ Extra note 3: You *probably* shouldn't use ambiguity-preserving algos like Earle
 (4) (Pre-scanning is a bespoke single-item, single-depth lookahead optimization that doesn't affect the structure of the algorithm at all, unlike other lookahead optimizations. If it has another name, I don't know it. It's just, "if the item we're about to put in the chart is immediately a dead end, don't add it".)
 
 The given numeric citations are not necessarily the earliest written examples of the given referenced technique, however they are generally the most widely-discussed. In particular, reduction pointers existed before ES's 2008 paper, but it was the one that brought them all the way across the finish line to complete, low-cost SPPF construction.
+
+### Recommended changes
+
+- Your tokenizer should probably be aware of comments. Mine isn't.
+- This implementation has an arbitrary, right-to-left disambiguation strategy. This is OK for languages where ambiguity is an accident instead of a feature. If you need to fix it, my blog posts cover how to get left-to-right disambiguation with specific disambiguation rules. Basically:
+- - If you need left-to-right disambiguation, you'll need to reverse the grammar and input token stream before parsing. If the parse fails, unreverse them and parse again before producing error messages.
+- - If you need specific disambiguation rules, look at the data under each reduction pointer in a given list of reduction pointers, and apply your disambiguation rules to that data.
+- You probably want to move the various dual-index HashMaps into the chart as single-index HashMaps, for a marginal performance boost. The way they're implemented here is meant to make it easier to understand what each item is doing.
+- I produce a "stringly-typed" AST. This is the right move for generic parsing, but if you have a set-in-stone grammar, you might want to produce a typed AST instead.
+- Particularly complex quasi-context-sensitive grammars like C and C++ will need to thread extra context through the parser to reject some state items and might need to run the parser multiple times. My "...can efficiently parse C..." blog post covers this.
