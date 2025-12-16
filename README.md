@@ -1,6 +1,6 @@
 Earley parser in pure Rust, written in a way that's meant to be "tutorializable".
 
-This is a 99% solution: you should copy it into your own codebase and adapt it, not use it as a library.
+This is a 99% solution: you should copy it into your own codebase and adapt it, not use it as a library. **It fully works as-is**, but the exact way your 
 
 You may use this code under any of the following licenses, at your choice: CC0, Unlicense, BSD-0, WTFPL. Optionally, I would appreciate a shoutout or "thanks" wherever the best place to put one is, if there is an appropriate place for one. Consider also thanking other existing Earley work if it's relevant to how you use this.
 
@@ -25,5 +25,6 @@ Recommended reading:
 - D.W.: [Computer Science Stack Exchange answer on the time complexity of nullable symbol detection](https://cs.stackexchange.com/questions/164696) (2023)
 - Me: [It is actually surprising that Earley can efficiently parse C, ambiguities and all](https://wareya.wordpress.com/2025/09/25/it-is-actually-surprising-that-earley-can-efficiently-parse-c-ambiguities-and-all/) (2025)
 - Me: [Earley Parsing Is Cheap in Principle and Practice: Motivation and Implementation](https://wareya.wordpress.com/2025/09/26/earley-parsing-is-cheap-in-principle-and-practice-motivation-and-implementation/) (2025)
+- Me: [Short bit: Converting EBNF to BNF](https://wareya.wordpress.com/2025/12/16/short-bit-converting-ebnf-to-bnf/) (2025)
 
 (4) (Pre-scanning is a bespoke single-item, single-depth lookahead optimization that doesn't affect the structure of the algorithm at all, unlike other lookahead optimizations. If it has another name, I don't know it.)
