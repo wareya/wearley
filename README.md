@@ -5,7 +5,7 @@ You may use this code under any of the following licenses, at your choice: CC0, 
 Recommended reading:
 
 - Earley: An Efficient Context-Free Parsing Algorithm (1968)
-- Leo: A general context-free parsing algorithm running lin linear time on every LR(k) grammar without using lookahead (1991)
+- Leo: A general context-free parsing algorithm running in linear time on every LR(k) grammar without using lookahead (1991)
 - Elizabeth Scott: SPPF-Style Parsing From Earley Recognisers (2008)
 - Kegler: Marpa, A practical general parser: the recognizer (2019)
 - Loup: [Earley Parsing Explained](https://loup-vaillant.fr/tutorials/earley-parsing/) (Multiple years)
