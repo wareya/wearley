@@ -16,11 +16,13 @@ A ::= "a" A | "a" | "b" | "c" | "d" | "e" | "f" | "g"
 B ::= #intentionally empty
 ```
 
-Extra note 1: This implementation produces a syntax tree, but the necessary information for producing SPPFs (e.g. using Elizabeth Scott's algorithm) is all present and preserved. If you need an SPPF, you can adapt the code to produce one without much pain.
+Extra note 1: Despite being mostly top-down, Earley parsing prefers left-recursion over right-recursion. If you get to pick between the two for a given rule, pick left recursion.
 
-Extra note 2: this is a "scannerful" implementation (i.e. it has a lexer/tokenizer): your tokenization needs are probably going to be slightly different, which is more reason that you should "copy paste and adapt" this.
+Extra note 2: This implementation produces a syntax tree, but the necessary information for producing SPPFs (e.g. using Elizabeth Scott's algorithm) is all present and preserved. If you need an SPPF, you can adapt the code to produce one without much pain.
 
-Extra note 3: You *probably* shouldn't use ambiguity-preserving algos like Earley for scannerless parsing; the extra costs associated with preserving ambiguity across the insides of lexical items makes everything way, way slower, so you should only go scannerless over ambiguity if it's absolutely necessary. You can adapt this to be scannerless if you're in one of those rare necessary situations, though: it's easier to go from scannerful to scannerless than the other way around.
+Extra note 3: this is a "scannerful" implementation (i.e. it has a lexer/tokenizer): your tokenization needs are probably going to be slightly different, which is more reason that you should "copy paste and adapt" this.
+
+Extra note 4: You *probably* shouldn't use ambiguity-preserving algos like Earley for scannerless parsing; the extra costs associated with preserving ambiguity across the insides of lexical items makes everything way, way slower, so you should only go scannerless over ambiguity if it's absolutely necessary. You can adapt this to be scannerless if you're in one of those rare necessary situations, though: it's easier to go from scannerful to scannerless than the other way around.
 
 ### Recommended reading
 
@@ -42,6 +44,7 @@ The given numeric citations are not necessarily the earliest written examples of
 ### Recommended changes
 
 - Your tokenizer should probably be aware of comments. Mine isn't.
+- Earley works on BNF, not EBNF. You'lll have to convert any EBNF rules to BNF. You can do this on the fly in code; see the recommended reading.
 - The API I implemented gives error locations, but not the error state set. You'll have to add extra structure around that part (instead of just returning the error location) to implementing full error reporting, which differs a lot depending on how you're using it.
 - This implementation has an arbitrary, right-to-left disambiguation strategy. This is OK for languages where ambiguity is an accident instead of a feature. If you need to fix it, my blog posts cover how to get left-to-right disambiguation with specific disambiguation rules. Basically:
 - - If you need left-to-right disambiguation, you'll need to reverse the grammar and input token stream before parsing. If the parse fails, unreverse them and parse again before producing error messages.
