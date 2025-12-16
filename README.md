@@ -8,7 +8,7 @@ You may use this code under any of the following licenses, at your choice: CC0, 
 
 Earley is a parsing algorithm that handles "pathological" grammars well. The implementation here has all the necessary modernizations to avoid the original 1968 version's problems: a simplified version of Leo's right recursion fix (1), nullability pre-advancement (2), reduction pointers (3), and pre-scanning (4).
 
-Even with this grammar, on the input string `a a a a a a ......`, this parser has no issues:
+Even with this grammar, on the input string `a a a a a a ......`, Wearley has no issues and parses at ~600k tokens per second (not insanely fast, but reasonable) on my system:
 
 ```bnf
 program ::= B B A
@@ -23,6 +23,21 @@ Extra note 2: This implementation produces a syntax tree, but the necessary info
 Extra note 3: this is a "scannerful" implementation (i.e. it has a lexer/tokenizer): your tokenization needs are probably going to be slightly different, which is more reason that you should "copy paste and adapt" this.
 
 Extra note 4: You *probably* shouldn't use ambiguity-preserving algos like Earley for scannerless parsing; the extra costs associated with preserving ambiguity across the insides of lexical items makes everything way, way slower, so you should only go scannerless over ambiguity if it's absolutely necessary. You can adapt this to be scannerless if you're in one of those rare necessary situations, though: it's easier to go from scannerful to scannerless than the other way around.
+
+### Who should use Earley parsing?
+
+If you're writing your own grammar, or parsing something with a simple grammar like JSON, you should not use Earley; instead, use a shift-reduce, or recursive descent, or Packrat-with-left-recursion-extensions parser, and adjust your grammar to work with that parser.
+
+There are lots of situations where Earley is really useful, though:
+
+- You're designing a grammar and don't know if you want to use ambiguous constructs yet
+- You're iteratively reverse engineering a grammar from examples and don't know if it's ambiguous yet
+- Your grammar is mostly unambiguous but has two or three annoying ambiguities that you just want to gloss over
+- Your parser of choice falls apart because the grammar requires too much lookahead or preprocessing, and other off-the-shelf parsers don't work with it
+- You want to use tree-sitter but can't
+- You're parsing based on untrusted input and exponential preprocessing isn't acceptable -- most efficient parsers have exponential or cubic setup cost on arbitrary grammars, Earley doesn't
+
+Depending on the exact input and grammar, Earley varies from 2x to 10x slower than recursive descent. On modern systems this isn't a problem for most use cases, but it can be a problem for syntax highlighting. For syntax highlighting you should use tree-sitter, which uses LR whenever possible and only falls back to GLR (something similar to Earley, but that plays nicely with LR) when it's forced to, minimizing the overhead.
 
 ### Recommended reading
 
