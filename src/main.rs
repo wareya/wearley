@@ -37,13 +37,46 @@ A ::= #intentionally empty
 */
     let s = r####"
 program ::= A
-A ::= "a" A | "a"
+A ::= "a" A | "a" | "b" | "c" | "d" | "e" | "f"
 "####;
     let g = bnf_to_grammar(&s).unwrap();
     println!("{:#?}", &g);
     
     let tokens = tokenize(&g, "
     
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+    
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
+
 a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
 a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
 a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a
@@ -64,6 +97,6 @@ a a a a a a a a a a   a a a a a a a a a a   a a a a a a a a a a   a a a a a a a 
     let ast = earley_parse(&g, "program", &tokens[..]);
     println!("{}", ast.is_ok());
     println!("Time taken: {:?} for {}", start.elapsed(), tokens.len());
-    let ast = ast.unwrap();
+    //let ast = ast.unwrap();
     //println!("{:#?} {} {} {} {}", ast, ast.text, ast.children.as_ref().unwrap().len(), ast.token_start, ast.token_count);
 }

@@ -48,6 +48,29 @@ pub struct ChartData {
     origin_sets : HashMap<(usize, usize), HashSet<usize>>,
 }
 
+// Prescan optimization: only add state items if they are not a scan that's going to immediately fail.
+// This reduces the total amount of Stuff that the chart filler needs to process, saving a bit of time.
+pub fn chart_add_if_not_invalid(g : &Grammar, tokens : &[Token], chart : &mut Vec<VecSet<StateItem>>, col : usize, item : StateItem) -> Option<usize>
+{
+    let terms = &g.points[item.rule as usize].forms[item.alt as usize].matching_terms;
+    let mut matched = true;
+    if (item.pos as usize) < terms.len() && col < tokens.len()
+    {
+        let mt = &terms[item.pos as usize];
+        match mt {
+            MatchingTerm::TermLit(text) => matched = *tokens[col].text == *text,
+            MatchingTerm::TermRegex(regex) => matched = regex.is_match(&*tokens[col].text),
+            _ => matched = true,
+        };
+    }
+    if !matched { return None; }
+    if col >= chart.len()
+    {
+        chart.resize_with(col + 1, || <_>::default());
+    }
+    Some(chart[col].insert(item))
+}
+
 pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> ChartData
 {
     // The actual chart.
@@ -115,9 +138,12 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
                 if set.len() == 1 && let Some(tailret_target) = tailret.get(&(item.start, *set.iter().next().unwrap()))
                 {
                     let new_item = chart[tailret_target.0][tailret_target.1].clone_progressed();
-                    let new_row = chart[col].insert(new_item);
-                    // Without these, we would be unable to reconstruct which items returned to which.
-                    taildown.entry((col, new_row)).or_insert_with(|| <_>::default()).insert(row);
+                    
+                    if let Some(new_row) = chart_add_if_not_invalid(g, tokens, &mut chart, col, new_item)
+                    {
+                        // Without these, we would be unable to reconstruct which items returned to which.
+                        taildown.entry((col, new_row)).or_insert_with(|| <_>::default()).insert(row);
+                    }
                     row += 1;
                     continue;
                 }
@@ -125,7 +151,7 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
                 for parent_row in set
                 {
                     let new_item = chart[item.start][*parent_row].clone_progressed();
-                    chart[col].insert(new_item);
+                    chart_add_if_not_invalid(g, tokens, &mut chart, col, new_item);
                 }
             }
         }
@@ -142,7 +168,8 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
                 // Prediction itself.
                 for i in 0..rule.forms.len()
                 {
-                    chart[col].insert(StateItem { rule : *id as u32, alt : i as u16, pos : 0, start : col });
+                    let new_item = StateItem { rule : *id as u32, alt : i as u16, pos : 0, start : col };
+                    chart_add_if_not_invalid(g, tokens, &mut chart, col, new_item);
                 }
                 
                 // For nullables, preemptively perform their completion.
@@ -151,7 +178,7 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
                 //     A ::= #intentionally empty
                 if is_nullable
                 {
-                    chart[col].insert(item.clone_progressed());
+                    chart_add_if_not_invalid(g, tokens, &mut chart, col, item.clone_progressed());
                 }
                 
                 // Right recursion hack setup:
@@ -176,19 +203,9 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
             // Scan
             else
             {
-                let matched = match mt {
-                    MatchingTerm::TermLit(text) => *tokens[col].text == *text,
-                    MatchingTerm::TermRegex(regex) => regex.is_match(&*tokens[col].text),
-                    _ => false,
-                };
-                if matched
-                {
-                    if col + 1 >= chart.len()
-                    {
-                        chart.push(<_>::default());
-                    }
-                    chart[col + 1].insert(item.clone_progressed());
-                }
+                // Because of the prescan optimization (only adding scan items that aren't going to fail their scan phase),
+                //  we already know that scan items in the chart have to be valid, so we check validity on the progressed version instead.
+                chart_add_if_not_invalid(g, tokens, &mut chart, col + 1, item.clone_progressed());
             }
         }
         row += 1;
@@ -246,7 +263,7 @@ impl Drop for ASTNode {
     }
 }
 
-pub fn fix_missing_reductions(data : &mut ChartData, col : usize, row : usize)
+pub fn fix_missing_reductions(g : &Grammar, tokens : &[Token], data : &mut ChartData, col : usize, row : usize)
 {
     if let Some(bottoms) = data.taildown.get(&(col, row))
     {
@@ -261,7 +278,8 @@ pub fn fix_missing_reductions(data : &mut ChartData, col : usize, row : usize)
                 for parent_row in set
                 {
                     let new_parent = data.chart[item.start][*parent_row].clone_progressed();
-                    let new_row = data.chart[col].insert(new_parent);
+                    let new_row = chart_add_if_not_invalid(g, tokens, &mut data.chart, col, new_parent).unwrap();
+                    
                     data.reductions.entry((col, new_row)).or_insert_with(|| <_>::default()).insert(row);
                     row = new_row;
                     item = data.chart[col][row].clone();
@@ -296,7 +314,7 @@ pub fn build_ast_node_recursive(g : &Grammar, tokens : &[Token], data : &mut Cha
         match mt {
             MatchingTerm::Rule(_) =>
             {
-                fix_missing_reductions(data, col, row);
+                fix_missing_reductions(g, tokens, data, col, row);
                 
                 // For now we arbitrarily pick whichever reduction is in the front.
                 let child_row = *data.reductions.get(&(col, row)).unwrap().iter().next().unwrap();
@@ -368,7 +386,7 @@ pub fn build_ast_node(g : &Grammar, tokens : &[Token], data : &mut ChartData, co
         {
             // We need to fix right-recursion reductions at the last possible opportunity (i.e. now).
             // If any earlier, the chart gets bloated.
-            fix_missing_reductions(data, ctx.col, ctx.row);
+            fix_missing_reductions(g, tokens, data, ctx.col, ctx.row);
             
             // For now we arbitrarily pick whichever reduction is in the front.
             let child_row = *data.reductions.get(&(ctx.col, ctx.row)).unwrap().iter().next().unwrap();

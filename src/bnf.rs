@@ -49,9 +49,9 @@ pub fn bnf_parse(input: &str) -> Result<Vec<(String, Vec<Vec<String>>)>, String>
 {
     let mut rules = Vec::new();
 
-    for (linenum, line) in input.lines().enumerate()
+    for (mut linenum, mut rest) in input.lines().enumerate()
     {
-        let mut rest = &line[..];
+        linenum += 1; // user-facing line numbers are 1-indexed
         
         let mut name : Option<String> = None;
         let mut found_separator = false;
@@ -187,8 +187,8 @@ pub fn grammar_convert(input: &Vec<(String, Vec<Vec<String>>)>) -> Result<Gramma
                 if term_str.starts_with("rx%") && term_str.ends_with("%rx") && term_str.len() >= 6
                 {
                     let pattern = &term_str[3..term_str.len() - 3];
-                    let pattern_all = format!("\\A{pattern}\\z"); // full match only
-                    let pattern = format!("\\A{pattern}"); // at start only
+                    let pattern_all = format!("\\A{pattern}\\z"); // narrowly full match
+                    let pattern = format!("\\A{pattern}"); // narrowly at start
                     let re = Regex::new(&pattern).map_err(|e| format!("Invalid regex '{}': {}", pattern, e))?;
                     let re2 = Regex::new(&pattern_all).map_err(|e| format!("Invalid regex '{}': {}", pattern_all, e))?;
                     regexes.push(re.clone());
