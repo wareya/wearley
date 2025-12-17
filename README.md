@@ -1,6 +1,6 @@
 # Wearley
 
-Earley parser in pure Rust, written in a way that's meant to be "tutorializable". It is both **ready to use** and **educational**. Everything you need to get started is here, including BNF parsing and an AST type, and the structure of the code was designed for comprehensibility and adaptability.
+Earley parser in pure Rust, written in a way that's meant to be "tutorializable". It's both **ready to use** and **educational**. Everything you need to get started is here, including BNF parsing and an AST type, and the structure of the code was designed for comprehensibility and adaptability.
 
 This is a 99% solution: you should copy it into your own codebase and adapt it, not use it as a library. **It fully works as-is**, but the exact way your program/library should implement Earley will depend on what else you have going on, so trying to provide a one-size-fits-all library API would cause problems.
 
