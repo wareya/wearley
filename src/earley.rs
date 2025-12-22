@@ -24,10 +24,7 @@ impl<T : Clone + Eq + std::hash::Hash> VecSet<T>
 impl<T> std::ops::Index<usize> for VecSet<T>
 {
     type Output = T;
-    fn index(&self, i : usize) -> &T
-    {
-        self.v.index(i)
-    }
+    fn index(&self, i : usize) -> &T { self.v.index(i) }
 }
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, Eq)]
@@ -41,16 +38,29 @@ pub struct StateItem {
 
 impl StateItem { fn clone_progressed(&self) -> Self { let mut ret = self.clone(); ret.pos += 1; ret } }
 
+#[derive(Debug, Default)]
+pub struct ChartColumn {
+    c : VecSet<StateItem>,
+    // Reduction pointers: necessary to be able to reconstruct an AST or SPPF from most parses.
+    // Pointers from parent row to child row in same column, at time of completion.
+    //reductions : Box<HashMap<usize, HashSet<usize>>>,
+    reductions : Box<HashMap<usize, usize>>,
+}
+impl std::ops::Index<usize> for ChartColumn
+{
+    type Output = StateItem;
+    fn index(&self, i : usize) -> &StateItem { self.c.index(i) }
+}
+
 pub struct ChartData {
-    chart : Vec<VecSet<StateItem>>,
-    reductions : HashMap<(usize, usize), HashSet<usize>>,
+    chart : Vec<ChartColumn>,
     taildown : HashMap<(usize, usize), HashSet<usize>>,
     origin_sets : HashMap<(usize, usize), HashSet<usize>>,
 }
 
 // Prescan optimization: only add state items if they are not a scan that's going to immediately fail.
 // This reduces the total amount of Stuff that the chart filler needs to process, saving a bit of time.
-pub fn chart_add_if_not_invalid(g : &Grammar, tokens : &[Token], chart : &mut Vec<VecSet<StateItem>>, col : usize, item : StateItem) -> Option<usize>
+pub fn chart_add_if_not_invalid(g : &Grammar, tokens : &[Token], chart : &mut Vec<ChartColumn>, col : usize, item : StateItem) -> Option<usize>
 {
     if col > tokens.len() { return None; }
     let terms = &g.points[item.rule as usize].forms[item.alt as usize].matching_terms;
@@ -59,7 +69,8 @@ pub fn chart_add_if_not_invalid(g : &Grammar, tokens : &[Token], chart : &mut Ve
     {
         let mt = &terms[item.pos as usize];
         match mt {
-            //MatchingTerm::TermLit(text) => matched = tokens[col].text == *text,
+            // Strings are semi-interned by deduplicating them with an Rc table. Including grammar strings.
+            // This makes a ptr comparison equivalent to a string comparison.
             MatchingTerm::TermLit(text) => matched = Rc::ptr_eq(&tokens[col].text, text),
             MatchingTerm::TermRegex(regex) => matched = regex.is_match(&tokens[col].text),
             _ => matched = true,
@@ -70,19 +81,18 @@ pub fn chart_add_if_not_invalid(g : &Grammar, tokens : &[Token], chart : &mut Ve
     {
         chart.resize_with(col + 1, || <_>::default());
     }
-    Some(chart[col].insert(item))
+    Some(chart[col].c.insert(item))
 }
-
 pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> ChartData
 {
     // The actual chart.
-    let mut chart = vec!(VecSet::default());
+    let mut chart = vec!(ChartColumn::default());
     
     // Set up every possible starting state, based on root_rule_name.
     let root_id = g.by_name[root_rule_name];
     for i in 0..g.points[root_id].forms.len()
     {
-        chart[0].insert(StateItem { rule : root_id as u32, alt : i as u16, pos : 0, start : 0 });
+        chart[0].c.insert(StateItem { rule : root_id as u32, alt : i as u16, pos : 0, start : 0 });
     }
     
     // For preemptive nullable completion, we need to know what the nullables are.
@@ -91,9 +101,6 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
     // Origin set, used to bypass the "linear scan" step of finding parents to advance when children complete.
     // (start col, rule) -> set(parent row)
     let mut origin_sets : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
-    // Reduction pointers: necessary to be able to reconstruct an AST or SPPF from most parses.
-    // Pointers from parent (col, row) to child row in same column, at time of completion.
-    let mut reductions : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
     // Right recursion hack: This part will be necessary to reconstructing the AST.
     // Pointers from parent (col, row) to child row in same column, at time of completion.
     let mut taildown : HashMap<(usize, usize), HashSet<usize>> = <_>::default();
@@ -109,25 +116,42 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
     while col < chart.len()
     {
         // End of this column? Go to the next one.
-        if row >= chart[col].len()
+        if row >= chart[col].c.len()
         {
             // Set up reduction pointers. These are necessary for disambiguation.
             // We do this here instead of during completion because handling nullable rules is a lot simpler this way.
             // If you want maximum performance instead: do it during completion, and also when preemptively completing nullables.
-            for (row, item) in chart[col].v.iter().enumerate()
+            let mut reductions = HashMap::<usize, HashSet<usize>>::default();
+            for (row, item) in chart[col].c.v.iter().enumerate()
             {
                 let terms = &g.points[item.rule as usize].forms[item.alt as usize].matching_terms;
                 if item.pos as usize >= terms.len() && let Some(set) = origin_sets.get(&(item.start, item.rule as usize))
                 {
                     for parent_row in set
                     {
-                        if let Some(&new_row) = chart[col].s.get(&chart[item.start][*parent_row].clone_progressed())
+                        if let Some(&new_row) = chart[col].c.s.get(&chart[item.start][*parent_row].clone_progressed())
                         {
-                            reductions.entry((col, new_row)).or_insert_with(|| <_>::default()).insert(row);
+                            reductions.entry(new_row).or_insert_with(|| <_>::default()).insert(row);
                         }
                     }
                 }
             }
+            let mut reductions_disambiguated = HashMap::<usize, usize>::default();
+            for (row, set) in reductions
+            {
+                let mut best = *set.iter().next().unwrap();
+                for &next in set.iter().skip(1)
+                {
+                    let best_item = chart[col][best].clone();
+                    let item = chart[col][next].clone();
+                    if item.alt < best_item.alt { best = next; continue; }
+                    // TODO: we're tied. check child / reduction target alt values now.
+                    // TODO: -- too complicated to write. do a length preference fallback for now.
+                    if item.alt == best_item.alt && item.start < best_item.start { best = next; continue; }
+                }
+                reductions_disambiguated.insert(row, best);
+            }
+            chart[col].reductions = Box::new(reductions_disambiguated);
             col += 1;
             row = 0;
             continue;
@@ -191,7 +215,7 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
                 
                 // Right recursion hack setup:
                 // Setup for the right-recursion hack: if the items produced by this prediction would cause US to complete ...
-                // ... set up a summarized upwards-return-sequence for them.
+                // ... set up a summarized upwards return sequence for them.
                 if !is_nullable && item.pos as usize + 1 == terms.len()
                     && let Some(set) = origin_sets.get(&(item.start, item.rule as usize)) && set.len() == 1
                 {
@@ -219,7 +243,7 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
         row += 1;
     }
     
-    ChartData { chart, reductions, taildown, origin_sets }
+    ChartData { chart, taildown, origin_sets }
 }
 
 #[allow(unused)]
@@ -233,7 +257,7 @@ pub fn earley_recognize(g : &Grammar, root_rule_name : &str, tokens : &[Token]) 
     {
         let pos = g.points[root_id].forms[i].matching_terms.len();
         let expected = StateItem { rule : root_id as u32, alt : i as u16, pos : pos as u16, start : 0 };
-        if chart.last().unwrap().s.contains_key(&expected)
+        if chart.last().unwrap().c.s.contains_key(&expected)
         {
             if chart.len() != tokens.len() + 1 { return Err((chart.len(), true)); }
             return Ok(i as u16);
@@ -244,9 +268,11 @@ pub fn earley_recognize(g : &Grammar, root_rule_name : &str, tokens : &[Token]) 
 
 #[derive(Clone, Debug, Default)]
 pub struct ASTNode {
+    #[allow(unused)]
     pub text : Rc<String>,
     pub children : Option<Vec<Box<ASTNode>>>,
     pub token_start : usize,
+    #[allow(unused)]
     pub token_count : usize,
 }
 
@@ -288,70 +314,14 @@ pub fn fix_missing_reductions(g : &Grammar, tokens : &[Token], data : &mut Chart
                     let new_parent = data.chart[item.start][*parent_row].clone_progressed();
                     let new_row = chart_add_if_not_invalid(g, tokens, &mut data.chart, col, new_parent).unwrap();
                     
-                    data.reductions.entry((col, new_row)).or_insert_with(|| <_>::default()).insert(row);
+                    //data.chart[col].reductions.entry(new_row).or_insert_with(|| <_>::default()).insert(row);
+                    data.chart[col].reductions.insert(new_row, row);
                     row = new_row;
                     item = data.chart[col][row].clone();
                 }
             }
         }
     }
-}
-
-// Included as documentation of design intent. You shouldn't use this, it'll blow up on long lists.
-#[allow(unused)]
-pub fn build_ast_node_recursive(g : &Grammar, tokens : &[Token], data : &mut ChartData, mut col : usize, mut row : usize) -> Box<ASTNode>
-{
-    let base_item = data.chart[col][row].clone();
-    let gp = &g.points[base_item.rule as usize];
-    let gp_alt = &gp.forms[base_item.alt as usize];
-    
-    let mut ret = ASTNode::default();
-    let mut children = Vec::new();
-    let col_start = col;
-    let mut pos = 0;
-    let pos_limit = base_item.pos as usize;
-    
-    ret.text = Rc::clone(&gp.name);
-    
-    while pos < pos_limit
-    {
-        let i = pos_limit - pos - 1;
-        
-        let mt = &gp_alt.matching_terms[i];
-        let prev_col;
-        match mt {
-            MatchingTerm::Rule(_) =>
-            {
-                fix_missing_reductions(g, tokens, data, col, row);
-                
-                // For now we arbitrarily pick whichever reduction is in the front.
-                let child_row = *data.reductions.get(&(col, row)).unwrap().iter().next().unwrap();
-                
-                let child_ast = build_ast_node_recursive(g, tokens, data, col, child_row);
-                prev_col = data.chart[col][child_row].start as usize;
-                children.push(child_ast);
-            }
-            MatchingTerm::TermLit(_) | MatchingTerm::TermRegex(_) =>
-            {
-                let mut node = Box::new(ASTNode::default());
-                node.text = Rc::clone(&tokens[col - 1].text);
-                children.push(node);
-                prev_col = col - 1;
-            }
-        }
-        pos += 1;
-        let mut prev_parent_item = data.chart[col][row].clone();
-        prev_parent_item.pos -= 1;
-        
-        let prev_parent_row = *data.chart[prev_col].s.get(&prev_parent_item).unwrap();
-        col = prev_col;
-        row = prev_parent_row;
-    }
-    children.reverse();
-    ret.children = Some(children);
-    ret.token_start = col;
-    ret.token_count = col_start - col;
-    Box::new(ret)
 }
 
 pub fn build_ast_node(g : &Grammar, tokens : &[Token], data : &mut ChartData, col : usize, row : usize) -> Box<ASTNode>
@@ -397,7 +367,8 @@ pub fn build_ast_node(g : &Grammar, tokens : &[Token], data : &mut ChartData, co
             fix_missing_reductions(g, tokens, data, ctx.col, ctx.row);
             
             // For now we arbitrarily pick whichever reduction is in the front.
-            let child_row = *data.reductions.get(&(ctx.col, ctx.row)).unwrap().iter().next().unwrap();
+            //let child_row = *data.chart[ctx.col].reductions.get(&ctx.row).unwrap().iter().next().unwrap();
+            let child_row = *data.chart[ctx.col].reductions.get(&ctx.row).unwrap();
             
             let child_item = &data.chart[ctx.col][child_row];
             let gp = &g.points[child_item.rule as usize];
@@ -434,7 +405,7 @@ pub fn build_ast_node(g : &Grammar, tokens : &[Token], data : &mut ChartData, co
             }
         }
         
-        ctx.row = *data.chart[ctx.col].s.get(&prev_parent_item).unwrap(); // Go to row of previous version of parent.
+        ctx.row = *data.chart[ctx.col].c.s.get(&prev_parent_item).unwrap(); // Go to row of previous version of parent.
     }
     
     ctx.children.reverse();
@@ -455,7 +426,7 @@ pub fn earley_parse(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> R
     {
         let pos = g.points[root_id].forms[i].matching_terms.len();
         let expected = StateItem { rule : root_id as u32, alt : i as u16, pos : pos as u16, start : 0 };
-        if chart.last().unwrap().s.contains_key(&expected)
+        if chart.last().unwrap().c.s.contains_key(&expected)
         {
             if chart.len() != tokens.len() + 1 { return Err((chart.len(), true)); }
             chosen = Some(expected);
@@ -465,7 +436,7 @@ pub fn earley_parse(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> R
     if let Some(chosen) = chosen
     {
         let chosen_col = chart.len() - 1;
-        let chosen_row = *chart[chosen_col].s.get(&chosen).unwrap();
+        let chosen_row = *chart[chosen_col].c.s.get(&chosen).unwrap();
         return Ok(build_ast_node(g, tokens, &mut data, chosen_col, chosen_row));
     }
     Err((chart.len(), false))

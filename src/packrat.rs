@@ -33,75 +33,6 @@ impl Drop for PackratASTNode {
     }
 }
 
-#[allow(unused)]
-// Provided as documentation of algorithmic intent. Do not use.
-// Does not have all the features that the non-recursive implementation has.
-pub fn packrat_parse_recursive_impl(cache : &mut HashMap<(usize, usize), Option<Rc<RefCell<PackratASTNode>>>>, g : &Grammar, gp_id : usize, tokens : &[Token], token_start : usize) -> Option<Rc<RefCell<PackratASTNode>>>
-{
-    // Deliberately written in a way that minimizes the changes needed for the non-recursive version.
-    let mut token_i = token_start;
-    let forms = &g.points[gp_id].forms;
-    let mut i = 0;
-    let mut terms = &forms[i].matching_terms;
-    let mut j = 0;
-    let mut children = Vec::new();
-    while i < forms.len() && j < terms.len() && token_i <= tokens.len()
-    {
-        let term = &terms[j];
-        let old_childcount = children.len();
-        let mut token_match = false;
-        match term
-        {
-            MatchingTerm::Rule(id) =>
-                if let Some(cached) = cache.get(&(*id, token_i))
-                {
-                    // cannot be combined into above if statement
-                    if let Some(child) = cached
-                    {
-                        let child = child.clone();
-                        token_i += child.borrow().token_count;
-                        children.push(child);
-                    }
-                }
-                else if let Some(child) = packrat_parse_recursive_impl(cache, g, *id, tokens, token_i)
-                {
-                    token_i += child.borrow().token_count;
-                    children.push(child);
-                }
-            MatchingTerm::TermLit(lit) =>
-                token_match = token_i < tokens.len() && tokens[token_i].text == *lit,
-            MatchingTerm::TermRegex(regex) =>
-                token_match = token_i < tokens.len() && regex.is_match(&tokens[token_i].text),
-        }
-        if token_match
-        {
-            children.push(Rc::new(RefCell::new(PackratASTNode {
-                text : Rc::clone(&tokens[token_i].text),
-                children : None, token_start : token_i, token_count : 1,
-            })));
-            token_i += 1;
-        }
-        
-        j += 1;
-        if children.len() == old_childcount
-        {
-            j = 0;
-            token_i = token_start;
-            children.clear();
-            i += 1;
-            if i >= forms.len() { cache.insert((gp_id, token_start), None); return None; }
-            terms = &forms[i].matching_terms;
-        }
-    }
-    let ret = Some(Rc::new(RefCell::new(PackratASTNode {
-        text : Rc::clone(&g.points[gp_id].name),
-        token_start : token_start,
-        token_count : token_i - token_start,
-        children : Some(children)
-    })));
-    cache.insert((gp_id, token_start), ret.clone());
-    ret
-}
 pub fn packrat_parse_impl(_cache : &mut HashMap<(usize, usize), Option<Rc<RefCell<PackratASTNode>>>>, g : &Grammar, _gp_id : usize, tokens : &[Token], _token_start : usize) -> Result<Rc<RefCell<PackratASTNode>>, String>
 {
     // _cache_ and _token_start are only included in the arg list for API parity with the recursive implementation
@@ -231,8 +162,9 @@ pub fn packrat_parse_impl(_cache : &mut HashMap<(usize, usize), Option<Rc<RefCel
         children : Some(ctx.children)
     })));
     ret
-    
 }
+
+#[allow(unused)]
 pub fn packrat_parse(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Result<Rc<RefCell<PackratASTNode>>, String>
 {
     let gp_id = g.by_name.get(root_rule_name).unwrap();
