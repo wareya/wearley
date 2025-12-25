@@ -185,6 +185,8 @@ pub fn chart_fill(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Cha
             continue;
         }
         
+        // Not at the end of the column: handle the current row in this column
+        
         let item = chart[col][row].clone();
         let terms = &g.points[item.rule as usize].forms[item.alt as usize].matching_terms;
         
@@ -451,6 +453,7 @@ pub fn build_ast_node(g : &Grammar, tokens : &[Token], data : &mut ChartData, co
     })
 }
 
+#[allow(unused)]
 pub fn earley_parse(g : &Grammar, root_rule_name : &str, tokens : &[Token]) -> Result<Box<ASTNode>, (usize, bool)>
 {
     let mut data = chart_fill(g, root_rule_name, tokens);

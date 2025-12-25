@@ -25,12 +25,9 @@ impl Drop for PackratASTNode {
             let mut i = 0;
             while i < collected.len()
             {
-                if let Some(c) = Rc::get_mut(&mut collected[i])
+                if let Some(c) = Rc::get_mut(&mut collected[i]) && let Some(mut c) = c.children.take()
                 {
-                    if let Some(mut c) = c.children.take()
-                    {
-                        collected.append(&mut c);
-                    }
+                    collected.append(&mut c);
                 }
                 i += 1;
             }
